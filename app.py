@@ -111,7 +111,6 @@ if uploaded_file is not None:
         font_strike = Font(name="Calibri", size=11, bold=False, strike=True)
 
         def apply_rules_and_formatting(ws, max_row, max_col_letter="Q"):
-          # Formula rules for colors & strikethrough based on $A2 status
           rule_planning = FormulaRule(
               formula=['$A2="Planning"'],
               stopIfTrue=True,
