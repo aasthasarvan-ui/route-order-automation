@@ -13,11 +13,11 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("📊 100% Fully Synced Route & Order Automation Dashboard")
+st.title("📊 100% Synced Route & Order Automation Dashboard")
 st.markdown(
     "Apni **INPUT FILE.xlsx** yahan upload karein. App master sheet sync,"
-    " dropdowns, conditional color formatting, aur **Dispatch strikethrough** ke"
-    " sath output file generate karega."
+    " dropdowns, conditional formatting, aur strikethrough ko sabhi routes par"
+    " perfectly apply karega."
 )
 
 uploaded_file = st.file_uploader(
@@ -175,7 +175,7 @@ if uploaded_file is not None:
               type="list", formula1='"Planning,Dispatch,Pending"', allow_blank=True
           )
           ws.add_data_validation(dv)
-          dv.add(f"A2:A{max(max_r, 1000)}")
+          dv.add(f"A2:A{max(max_r, 2000)}")
           return max_r + 1
 
         # --- A. Master Sheets ---
@@ -321,7 +321,7 @@ if uploaded_file is not None:
               type="list", formula1='"Planning,Dispatch,Pending"', allow_blank=True
           )
           ws_route.add_data_validation(dv)
-          dv.add(f"A2:A{max(max_r_route, 1000)}")
+          dv.add(f"A2:A{max(max_r_route, 2000)}")
 
           channels_str = ", ".join(
               [
@@ -449,8 +449,8 @@ if uploaded_file is not None:
         output_io.seek(0)
 
         st.success(
-            "🎉 Fully Synced Output File successfully generated with Strikethrough"
-            " & Rules!"
+            "🎉 Fully Synced Output File successfully generated with Dropdowns &"
+            " Formatting!"
         )
         st.download_button(
             label="📥 Download Final Output File (.xlsx)",
