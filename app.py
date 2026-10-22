@@ -1,5 +1,6 @@
 import io
 import openpyxl
+from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -12,11 +13,11 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("📊 100% Exact Route & Order Automation Dashboard")
+st.title("📊 100% Fully Updated Route & Order Automation Dashboard")
 st.markdown(
-    "Apni **INPUT FILE.xlsx** yahan upload karein. App exact original output"
-    " file ke format, formulas (`INDEX/MATCH`, `SUMIF`, `HYPERLINK`), dropdowns"
-    " aur color formatting ke sath output generate karega."
+    "Apni **INPUT FILE.xlsx** yahan upload karein. App exact formatting,"
+    " formulas (`INDEX/MATCH`, `SUMIF`, `HYPERLINK`), dropdowns aur proper row"
+    " conditional formatting ke sath output generate karega."
 )
 
 uploaded_file = st.file_uploader(
@@ -28,8 +29,11 @@ if uploaded_file is not None:
     df_in = pd.read_excel(uploaded_file)
     st.success("File successfully uploaded and read!")
 
-    if st.button("🚀 Generate Exact Output File"):
-      with st.spinner("Processing data, formulas, and formatting..."):
+    if st.button("🚀 Generate Fully Updated Output File"):
+      with st.spinner(
+          "Processing data, formulas, conditional formatting, and"
+          " layouts..."
+      ):
 
         output_io = io.BytesIO()
         wb = openpyxl.Workbook()
@@ -62,12 +66,11 @@ if uploaded_file is not None:
             return "Pending"
           return val_str
 
-        # Prepare records for master sheets
         records = []
         for idx, row in df_in.iterrows():
           status_val = clean_status(row.get("Overall Status", "Pending"))
           dist_chan = str(row.get("Distribution Channel Description", ""))
-          r_idx = len(records) + 2  # Excel row index starting from 2
+          r_idx = len(records) + 2
 
           records.append({
               "Status": status_val,
@@ -94,7 +97,7 @@ if uploaded_file is not None:
 
         df_processed = pd.DataFrame(records)
 
-        # Color fills (Matching exact soft colors from screenshots)
+        # Color Fills Definition
         fill_yellow = PatternFill(
             start_color="FEEFC3", end_color="FEEFC3", fill_type="solid"
         )
@@ -104,6 +107,23 @@ if uploaded_file is not None:
         fill_green = PatternFill(
             start_color="E2F0D9", end_color="E2F0D9", fill_type="solid"
         )
+
+        def apply_conditional_formatting(ws, max_row, max_col_letter="Q"):
+          # Formula rules referencing $A2 (without locking column A so entire row highlights)
+          rule_planning = FormulaRule(
+              formula=['$A2="Planning"'], stopIfTrue=True, fill=fill_blue
+          )
+          rule_dispatch = FormulaRule(
+              formula=['$A2="Dispatch"'], stopIfTrue=True, fill=fill_green
+          )
+          rule_pending = FormulaRule(
+              formula=['$A2="Pending"'], stopIfTrue=True, fill=fill_yellow
+          )
+
+          range_str = f"A2:{max_col_letter}{max_row}"
+          ws.conditional_formatting.add(range_str, rule_planning)
+          ws.conditional_formatting.add(range_str, rule_dispatch)
+          ws.conditional_formatting.add(range_str, rule_pending)
 
         def populate_master_sheet(ws, df_subset):
           ws.append(master_cols)
@@ -136,49 +156,48 @@ if uploaded_file is not None:
                 r["Sales Person Name"],
                 r["Lookup Key"],
             ])
-
-            stat = str(r["Status"])
-            if "Pending" in stat or "Process" in stat:
-              for c in range(1, len(master_cols) + 1):
-                ws.cell(row=row_idx, column=c).fill = fill_yellow
-            elif "Planning" in stat:
-              for c in range(1, len(master_cols) + 1):
-                ws.cell(row=row_idx, column=c).fill = fill_blue
-            elif "Dispatch" in stat:
-              for c in range(1, len(master_cols) + 1):
-                ws.cell(row=row_idx, column=c).fill = fill_green
             row_idx += 1
+
+          max_r = max(row_idx - 1, 2)
+          apply_conditional_formatting(ws, max_r, "R")
 
           # Data Validation Dropdown for Status column
           dv = DataValidation(
               type="list", formula1='"Planning,Dispatch,Pending"', allow_blank=True
           )
           ws.add_data_validation(dv)
-          dv.add(f"A2:A{max(row_idx-1, 1000)}")
-          return row_idx
+          dv.add(f"A2:A{max(max_r, 1000)}")
+          return max_r + 1
 
         # --- A. General Trade Sheet ---
         ws_gt = wb.create_sheet(title="General Trade")
-        df_gt_data = df_processed[
-            df_processed["Distribution Channel Description"].str.contains(
-                "General Trade", case=False, na=False
-            )
-        ]
-        gt_max_row = populate_master_sheet(ws_gt, df_gt_data)
+        gt_max_row = populate_master_sheet(
+            ws_gt,
+            df_processed[
+                df_processed["Distribution Channel Description"].str.contains(
+                    "General Trade", case=False, na=False
+                )
+            ],
+        )
 
         # --- B. Nestle Sheet ---
         ws_nestle = wb.create_sheet(title="Nestle")
-        df_nestle_data = df_processed[
-            df_processed["Distribution Channel Description"] == "Nestle"
-        ]
-        nestle_max_row = populate_master_sheet(ws_nestle, df_nestle_data)
+        nestle_max_row = populate_master_sheet(
+            ws_nestle,
+            df_processed[
+                df_processed["Distribution Channel Description"] == "Nestle"
+            ],
+        )
 
         # --- C. Nestle Open Sheet ---
         ws_n_open = wb.create_sheet(title="Nestle Open")
-        df_nopen_data = df_processed[
-            df_processed["Distribution Channel Description"] == "Nestle Open"
-        ]
-        nopen_max_row = populate_master_sheet(ws_n_open, df_nopen_data)
+        nopen_max_row = populate_master_sheet(
+            ws_n_open,
+            df_processed[
+                df_processed["Distribution Channel Description"]
+                == "Nestle Open"
+            ],
+        )
 
         # --- D. Route Sheets ---
         unique_routes = df_processed["Route"].dropna().unique()
@@ -240,7 +259,6 @@ if uploaded_file is not None:
 
           r_row_idx = 2
           for _, raw_row in df_r_data.iterrows():
-            # Exact IFERROR(INDEX/MATCH) formula synced with master sheets
             status_formula = (
                 f'=IFERROR(INDEX({nestle_rng}, MATCH(E{r_row_idx}&"_"&K{r_row_idx},'
                 f" {nestle_lkp}, 0)),"
@@ -272,52 +290,45 @@ if uploaded_file is not None:
                 ),
                 raw_row.get("Sales Person Name"),
             ])
-
-            stat_txt = str(raw_row.get("Overall Status", ""))
-            if "Pending" in stat_txt or "Process" in stat_txt:
-              for c in range(1, len(route_cols) + 1):
-                ws_route.cell(row=r_row_idx, column=c).fill = fill_yellow
-            elif "Planning" in stat_txt:
-              for c in range(1, len(route_cols) + 1):
-                ws_route.cell(row=r_row_idx, column=c).fill = fill_blue
-            elif "Dispatch" in stat_txt:
-              for c in range(1, len(route_cols) + 1):
-                ws_route.cell(row=r_row_idx, column=c).fill = fill_green
             r_row_idx += 1
 
+          max_r_route = r_row_idx - 1
+          apply_conditional_formatting(ws_route, max_r_route, "Q")
+
           # Total Row
-          ws_route.cell(row=r_row_idx, column=2, value="Total").font = Font(
+          total_row_idx = r_row_idx
+          ws_route.cell(row=total_row_idx, column=2, value="Total").font = Font(
               bold=True
           )
           open_col_let = get_column_letter(16)
           ws_route.cell(
-              row=r_row_idx,
+              row=total_row_idx,
               column=16,
-              value=f"=SUM({open_col_let}2:{open_col_let}{r_row_idx-1})",
+              value=f"=SUM({open_col_let}2:{open_col_let}{max_r_route})",
           ).font = Font(bold=True)
-          ws_route.cell(row=r_row_idx, column=16).fill = PatternFill(
+          ws_route.cell(row=total_row_idx, column=16).fill = PatternFill(
               start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"
           )
 
-          # Dropdown
           dv = DataValidation(
               type="list", formula1='"Planning,Dispatch,Pending"', allow_blank=True
           )
           ws_route.add_data_validation(dv)
-          dv.add(f"A2:A{max(r_row_idx-1, 1000)}")
+          dv.add(f"A2:A{max(max_r_route, 1000)}")
 
-          channels_list = (
-              df_r_data["Distribution Channel Description"]
-              .unique()
-              .tolist()
+          channels_str = ", ".join(
+              [
+                  str(c)
+                  for c in df_r_data["Distribution Channel Description"]
+                  .unique()
+                  .tolist()
+              ]
           )
-          channels_str = ", ".join([str(c) for c in channels_list])
-
           route_summary_data.append({
               "Route No.": r_val,
               "Total Pending Items": len(df_r_data),
               "SheetName": sheet_name,
-              "LastRow": r_row_idx,
+              "LastRow": total_row_idx,
               "OpenColLetter": open_col_let,
               "Channels": channels_str,
           })
@@ -430,11 +441,14 @@ if uploaded_file is not None:
         wb.save(output_io)
         output_io.seek(0)
 
-        st.success("🎉 100% Exact Output File successfully generated!")
+        st.success(
+            "🎉 100% Fully Updated Output File successfully generated with"
+            " Conditional Formatting!"
+        )
         st.download_button(
-            label="📥 Download Exact Output File (.xlsx)",
+            label="📥 Download Fully Updated Output File (.xlsx)",
             data=output_io,
-            file_name="Output_File_Exact.xlsx",
+            file_name="Output_File_Updated.xlsx",
             mime=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ),
