@@ -94,7 +94,7 @@ if uploaded_file is not None:
 
         df_processed = pd.DataFrame(records)
 
-        # Color fills
+        # Color fills (Matching exact soft colors from screenshots)
         fill_yellow = PatternFill(
             start_color="FEEFC3", end_color="FEEFC3", fill_type="solid"
         )
@@ -132,12 +132,11 @@ if uploaded_file is not None:
                 r["Base Unit of Measure"],
                 r["Order Quantity"],
                 r["InvoicedQuantity"],
-                r["Open Quantity"],  # Formula string
+                r["Open Quantity"],
                 r["Sales Person Name"],
-                r["Lookup Key"],  # Formula string
+                r["Lookup Key"],
             ])
 
-            # Apply row color based on status
             stat = str(r["Status"])
             if "Pending" in stat or "Process" in stat:
               for c in range(1, len(master_cols) + 1):
@@ -150,7 +149,7 @@ if uploaded_file is not None:
                 ws.cell(row=row_idx, column=c).fill = fill_green
             row_idx += 1
 
-          # Dropdown
+          # Data Validation Dropdown for Status column
           dv = DataValidation(
               type="list", formula1='"Planning,Dispatch,Pending"', allow_blank=True
           )
@@ -193,7 +192,6 @@ if uploaded_file is not None:
 
         route_summary_data = []
 
-        # Ranges for master sheets for INDEX/MATCH sync formula
         gt_rng = f"'General Trade'!$A$2:$A${gt_max_row-1}"
         gt_lkp = f"'General Trade'!$R$2:$R${gt_max_row-1}"
         nestle_rng = f"Nestle!$A$2:$A${nestle_max_row-1}"
@@ -213,7 +211,6 @@ if uploaded_file is not None:
           ws_route = wb.create_sheet(title=sheet_name)
           df_r_data = df_in[df_in["Route"].astype(str) == r_val]
 
-          # Route sheet columns (without Lookup Key in original route sheets)
           route_cols = [
               "Status",
               "Sales Organization",
@@ -243,7 +240,7 @@ if uploaded_file is not None:
 
           r_row_idx = 2
           for _, raw_row in df_r_data.iterrows():
-            # Status formula synced via INDEX/MATCH with master sheets
+            # Exact IFERROR(INDEX/MATCH) formula synced with master sheets
             status_formula = (
                 f'=IFERROR(INDEX({nestle_rng}, MATCH(E{r_row_idx}&"_"&K{r_row_idx},'
                 f" {nestle_lkp}, 0)),"
@@ -276,7 +273,6 @@ if uploaded_file is not None:
                 raw_row.get("Sales Person Name"),
             ])
 
-            # Color formatting based on initial status value
             stat_txt = str(raw_row.get("Overall Status", ""))
             if "Pending" in stat_txt or "Process" in stat_txt:
               for c in range(1, len(route_cols) + 1):
@@ -293,7 +289,7 @@ if uploaded_file is not None:
           ws_route.cell(row=r_row_idx, column=2, value="Total").font = Font(
               bold=True
           )
-          open_col_let = get_column_letter(16)  # Column P is Open Quantity
+          open_col_let = get_column_letter(16)
           ws_route.cell(
               row=r_row_idx,
               column=16,
@@ -344,21 +340,12 @@ if uploaded_file is not None:
             "Shortage / Surplus",
         ])
 
-        stock_agg = (
-            df_processed.groupby(
-                ["Product", "Product Description", "Base Unit of Measure"]
-            )["Open Quantity"]
-            .count()
-            .reset_index()
-        )  # group for unique products
-        # Get unique product details from raw input
         unique_prods = (
             df_in[["Product", "Product Description", "Base Unit of Measure"]]
             .drop_duplicates()
             .reset_index(drop=True)
         )
-
-        all_sheet_names_for_sumif = (
+        all_sheets_sumif = (
             ["General Trade", "Nestle", "Nestle Open"]
             + [item["SheetName"] for item in route_summary_data]
         )
@@ -375,12 +362,10 @@ if uploaded_file is not None:
               else "Retail"
           )
 
-          # Build SUMIF formula across all sheets
-          sumif_parts = []
-          for s_nm in all_sheet_names_for_sumif:
-            sumif_parts.append(
-                f"SUMIF('{s_nm}'!$K:$K, A{stock_row}, '{s_nm}'!$P:$P)"
-            )
+          sumif_parts = [
+              f"SUMIF('{s_nm}'!$K:$K, A{stock_row}, '{s_nm}'!$P:$P)"
+              for s_nm in all_sheets_sumif
+          ]
           total_qty_formula = "=" + "+".join(sumif_parts)
 
           ws_stock.append([
