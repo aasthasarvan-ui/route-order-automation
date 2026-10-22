@@ -13,11 +13,11 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("📊 100% Fully Updated Route & Order Automation Dashboard")
+st.title("📊 100% Fully Synced Route & Order Automation Dashboard")
 st.markdown(
-    "Apni **INPUT FILE.xlsx** yahan upload karein. App exact formatting,"
-    " formulas (`INDEX/MATCH`, `SUMIF`, `HYPERLINK`), dropdowns aur proper row"
-    " conditional formatting ke sath output generate karega."
+    "Apni **INPUT FILE.xlsx** yahan upload karein. App master sheet sync,"
+    " dropdowns, conditional color formatting, aur **Dispatch strikethrough** ke"
+    " sath output file generate karega."
 )
 
 uploaded_file = st.file_uploader(
@@ -29,10 +29,9 @@ if uploaded_file is not None:
     df_in = pd.read_excel(uploaded_file)
     st.success("File successfully uploaded and read!")
 
-    if st.button("🚀 Generate Fully Updated Output File"):
+    if st.button("🚀 Generate Final Output File"):
       with st.spinner(
-          "Processing data, formulas, conditional formatting, and"
-          " layouts..."
+          "Processing data, syncing formulas, and applying rules..."
       ):
 
         output_io = io.BytesIO()
@@ -97,7 +96,7 @@ if uploaded_file is not None:
 
         df_processed = pd.DataFrame(records)
 
-        # Color Fills Definition
+        # Color fills definition
         fill_yellow = PatternFill(
             start_color="FEEFC3", end_color="FEEFC3", fill_type="solid"
         )
@@ -108,16 +107,28 @@ if uploaded_file is not None:
             start_color="E2F0D9", end_color="E2F0D9", fill_type="solid"
         )
 
-        def apply_conditional_formatting(ws, max_row, max_col_letter="Q"):
-          # Formula rules referencing $A2 (without locking column A so entire row highlights)
+        font_normal = Font(name="Calibri", size=11, bold=False, strike=False)
+        font_strike = Font(name="Calibri", size=11, bold=False, strike=True)
+
+        def apply_rules_and_formatting(ws, max_row, max_col_letter="Q"):
+          # Formula rules for colors & strikethrough based on $A2 status
           rule_planning = FormulaRule(
-              formula=['$A2="Planning"'], stopIfTrue=True, fill=fill_blue
+              formula=['$A2="Planning"'],
+              stopIfTrue=True,
+              fill=fill_blue,
+              font=font_normal,
           )
           rule_dispatch = FormulaRule(
-              formula=['$A2="Dispatch"'], stopIfTrue=True, fill=fill_green
+              formula=['$A2="Dispatch"'],
+              stopIfTrue=True,
+              fill=fill_green,
+              font=font_strike,
           )
           rule_pending = FormulaRule(
-              formula=['$A2="Pending"'], stopIfTrue=True, fill=fill_yellow
+              formula=['$A2="Pending"'],
+              stopIfTrue=True,
+              fill=fill_yellow,
+              font=font_normal,
           )
 
           range_str = f"A2:{max_col_letter}{max_row}"
@@ -159,9 +170,8 @@ if uploaded_file is not None:
             row_idx += 1
 
           max_r = max(row_idx - 1, 2)
-          apply_conditional_formatting(ws, max_r, "R")
+          apply_rules_and_formatting(ws, max_r, "R")
 
-          # Data Validation Dropdown for Status column
           dv = DataValidation(
               type="list", formula1='"Planning,Dispatch,Pending"', allow_blank=True
           )
@@ -169,7 +179,7 @@ if uploaded_file is not None:
           dv.add(f"A2:A{max(max_r, 1000)}")
           return max_r + 1
 
-        # --- A. General Trade Sheet ---
+        # --- A. Master Sheets ---
         ws_gt = wb.create_sheet(title="General Trade")
         gt_max_row = populate_master_sheet(
             ws_gt,
@@ -180,7 +190,6 @@ if uploaded_file is not None:
             ],
         )
 
-        # --- B. Nestle Sheet ---
         ws_nestle = wb.create_sheet(title="Nestle")
         nestle_max_row = populate_master_sheet(
             ws_nestle,
@@ -189,7 +198,6 @@ if uploaded_file is not None:
             ],
         )
 
-        # --- C. Nestle Open Sheet ---
         ws_n_open = wb.create_sheet(title="Nestle Open")
         nopen_max_row = populate_master_sheet(
             ws_n_open,
@@ -199,7 +207,7 @@ if uploaded_file is not None:
             ],
         )
 
-        # --- D. Route Sheets ---
+        # --- B. Route Sheets ---
         unique_routes = df_processed["Route"].dropna().unique()
         sorted_routes = sorted(
             [str(r) for r in unique_routes],
@@ -293,7 +301,7 @@ if uploaded_file is not None:
             r_row_idx += 1
 
           max_r_route = r_row_idx - 1
-          apply_conditional_formatting(ws_route, max_r_route, "Q")
+          apply_rules_and_formatting(ws_route, max_r_route, "Q")
 
           # Total Row
           total_row_idx = r_row_idx
@@ -333,7 +341,7 @@ if uploaded_file is not None:
               "Channels": channels_str,
           })
 
-        # --- E. Stock vs Order Sheet ---
+        # --- C. Stock vs Order Sheet ---
         ws_stock = wb.create_sheet(title="Stock vs Order")
         ws_stock.append(["STOCK VS ORDER & MATERIAL CATEGORY REPORT"])
         ws_stock.append([
@@ -390,7 +398,7 @@ if uploaded_file is not None:
           ])
           stock_row += 1
 
-        # --- F. Route Index Sheet ---
+        # --- D. Route Index Sheet ---
         ws_index = wb.create_sheet(title="Route Index", index=0)
         ws_index.append(["ROUTE-WISE PENDING ORDERS INDEX & DASHBOARD"])
         ws_index.append([
@@ -442,13 +450,13 @@ if uploaded_file is not None:
         output_io.seek(0)
 
         st.success(
-            "🎉 100% Fully Updated Output File successfully generated with"
-            " Conditional Formatting!"
+            "🎉 Fully Synced Output File successfully generated with Strikethrough"
+            " & Rules!"
         )
         st.download_button(
-            label="📥 Download Fully Updated Output File (.xlsx)",
+            label="📥 Download Final Output File (.xlsx)",
             data=output_io,
-            file_name="Output_File_Updated.xlsx",
+            file_name="Output_File_Final.xlsx",
             mime=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ),
