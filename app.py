@@ -15,8 +15,9 @@ st.set_page_config(
 
 st.title("📥 Nestle Bot DR Downloader & Merger")
 st.write(
-    "High-speed tool to download email attachments and paste data starting from"
-    " row 6 in the template Excel file (Output.xlsx)."
+    "High-speed tool to download attachments starting with 'OutputBlankDR'"
+    " (subject is optional) and paste data starting from row 6 in the template"
+    " Excel file (Output.xlsx)."
 )
 
 # Load email password securely from Streamlit secrets if available, otherwise input field
@@ -56,8 +57,10 @@ mailbox_name = st.sidebar.text_input(
 
 st.subheader("Search Parameters")
 selected_date = st.date_input("Select Date", value=datetime.today())
+# Subject filter is now optional (leave blank to process all emails for that date)
 subject_filter = st.text_input(
-    "Subject Filter", value="Nestle Bot Partailly Completed & Missing DR Codes"
+    "Subject Filter (Optional - Leave blank to ignore subject)",
+    value="Nestle Bot Partailly Completed & Missing DR Codes",
 )
 
 TEMPLATE_FILENAME = "Output.xlsx"
@@ -105,44 +108,52 @@ if st.button("Process & Combine Files (High Speed)", type="primary"):
             msg_nums = messages[0].split()
             matching_nums = []
 
-            # FAST PASS: Check subjects by fetching only headers first
-            for num in msg_nums:
-              try:
-                res, h_data = mail.fetch(num, "(BODY.PEEK[HEADER.FIELDS (Subject)])")
-                for response_part in h_data:
-                  if isinstance(response_part, tuple):
-                    msg_header = email.message_from_bytes(response_part[1])
-                    raw_subject = msg_header["Subject"]
-                    if raw_subject:
-                      decoded_subj_list = decode_header(raw_subject)
-                      subject_str = ""
-                      for sub, enc in decoded_subj_list:
-                        if isinstance(sub, bytes):
-                          subject_str += sub.decode(
-                              enc or "utf-8", errors="ignore"
-                          )
-                        else:
-                          subject_str += str(sub)
-                      
-                      if subject_filter.strip().lower() in subject_str.lower():
-                        matching_nums.append(num)
-              except Exception:
-                continue
+            # If subject filter is provided, filter by subject. If blank, accept all emails for that date.
+            if subject_filter.strip():
+              for num in msg_nums:
+                try:
+                  res, h_data = mail.fetch(
+                      num, "(BODY.PEEK[HEADER.FIELDS (Subject)])"
+                  )
+                  for response_part in h_data:
+                    if isinstance(response_part, tuple):
+                      msg_header = email.message_from_bytes(response_part[1])
+                      raw_subject = msg_header["Subject"]
+                      if raw_subject:
+                        decoded_subj_list = decode_header(raw_subject)
+                        subject_str = ""
+                        for sub, enc in decoded_subj_list:
+                          if isinstance(sub, bytes):
+                            subject_str += sub.decode(
+                                enc or "utf-8", errors="ignore"
+                            )
+                          else:
+                            subject_str += str(sub)
+
+                        if (
+                            subject_filter.strip().lower()
+                            in subject_str.lower()
+                        ):
+                          matching_nums.append(num)
+                except Exception:
+                  continue
+            else:
+              matching_nums = msg_nums  # Take all messages if subject is blank
 
             if not matching_nums:
               st.warning(
-                  f"Found emails for this date, but their subjects did not match"
-                  f" '{subject_filter}'."
+                  f"Found emails for this date, but none matched the subject"
+                  f" criteria."
               )
               mail.logout()
             else:
               st.info(
-                  f"Found {len(matching_nums)} matching email(s). Downloading"
+                  f"Found {len(matching_nums)} email(s) to process. Checking"
                   " attachments..."
               )
               downloaded_files = []
 
-              # Download full content ONLY for matching emails
+              # Download attachments strictly starting with 'OutputBlankDR'
               for num in matching_nums:
                 res, msg_data = mail.fetch(num, "(RFC822)")
                 for response_part in msg_data:
@@ -164,10 +175,8 @@ if st.button("Process & Combine Files (High Speed)", type="primary"):
                               errors="ignore",
                           )
 
-                        if (
-                            "OutputBlankDR" in filename
-                            and filename.endswith(".xlsx")
-                        ):
+                        # STRICT FILTER: Filename must start with 'OutputBlankDR'
+                        if filename.startswith("OutputBlankDR") and filename.endswith(".xlsx"):
                           filepath = os.path.join(download_folder, filename)
                           with open(filepath, "wb") as f:
                             f.write(part.get_payload(decode=True))
@@ -178,11 +187,11 @@ if st.button("Process & Combine Files (High Speed)", type="primary"):
               if downloaded_files:
                 st.success(
                     f"Successfully downloaded {len(downloaded_files)} Excel"
-                    " attachment(s)!"
+                    " attachment(s) starting with 'OutputBlankDR'!"
                 )
 
-                output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
-                output_path = os.path.join(download_folder, output_filename)
+                Output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
+                Output_path = os.path.join(download_folder, Output_filename)
 
                 # Load template file Output.xlsx
                 wb = openpyxl.load_workbook(TEMPLATE_FILENAME)
@@ -205,17 +214,17 @@ if st.button("Process & Combine Files (High Speed)", type="primary"):
                     except Exception as e:
                       st.error(f"Error reading file {file}: {e}")
 
-                  wb.save(output_path)
+                  wb.save(Output_path)
 
                   st.info(
                       "Data has been successfully pasted starting from row 6 in"
                       " the template file! Click the button below to download:"
                   )
-                  with open(output_path, "rb") as f:
+                  with open(Output_path, "rb") as f:
                     st.download_button(
                         label="📥 Download Master Excel File",
                         data=f,
-                        file_name=output_filename,
+                        file_name=Output_filename,
                         mime=(
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         ),
@@ -226,8 +235,8 @@ if st.button("Process & Combine Files (High Speed)", type="primary"):
                   )
               else:
                 st.warning(
-                    "Matching emails were found, but none contained an"
-                    " 'OutputBlankDR' Excel file attachment."
+                    "No attachments starting with 'OutputBlankDR' were found in"
+                    " the searched emails."
                 )
 
       except Exception as e:
