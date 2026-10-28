@@ -41,6 +41,7 @@ subject_filter = st.text_input(
 
 if st.button("Process & Combine Files", type="primary"):
   if not email_pass:
+    st.warning("Kripya apna Email App Password enter karein.")
   else:
     download_folder = "temp_downloads"
     os.makedirs(download_folder, exist_ok=True)
@@ -116,7 +117,9 @@ if st.button("Process & Combine Files", type="primary"):
               output_path = os.path.join(download_folder, output_filename)
               combined_df.to_excel(output_path, index=False)
 
-              st.info("Files combine ho chuki hain. Neeche button se download karein:")
+              st.info(
+                  "Files combine ho chuki hain. Neeche button se download karein:"
+              )
               with open(output_path, "rb") as f:
                 st.download_button(
                     label="📥 Download Master Excel File",
