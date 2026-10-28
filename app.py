@@ -15,16 +15,34 @@ st.set_page_config(
 
 st.title("📥 Nestle Bot DR Downloader & Merger")
 st.write(
-    "Template Excel file (Output.xlsx) me mail ke attachments ka data row 6 se"
-    " paste karne ka tool."
+    "Tool to download email attachments and paste data starting from row 6 in"
+    " the template Excel file (Output.xlsx)."
 )
+
+# Load email password securely from Streamlit secrets if available, otherwise input field
+default_password = ""
+try:
+  if (
+      hasattr(st, "secrets")
+      and "email" in st.secrets
+      and "app_password" in st.secrets["email"]
+  ):
+    default_password = st.secrets["email"]["app_password"]
+except Exception:
+  pass
 
 st.sidebar.header("Email Credentials & Settings")
 email_user = st.sidebar.text_input(
     "Email Address", value="harmesh.kumar@aseesfeed.com"
 )
 email_pass = st.sidebar.text_input(
-    "Email App Password", type="password", help="Gmail App Password use karein"
+    "Email App Password",
+    value=default_password,
+    type="password",
+    help=(
+        "Enter your Gmail App Password. You can also save it in Streamlit Secrets"
+        " (.streamlit/secrets.toml)"
+    ),
 )
 
 imap_server = st.sidebar.selectbox(
@@ -33,7 +51,7 @@ imap_server = st.sidebar.selectbox(
 mailbox_name = st.sidebar.text_input(
     "Mailbox / Folder Name",
     value="BOT",
-    help="Jis folder me mails hain uska naam dalein (jaise BOT)",
+    help="Enter the folder name where emails are located (e.g., BOT)",
 )
 
 st.subheader("Search Parameters")
@@ -46,10 +64,11 @@ TEMPLATE_FILENAME = "Output.xlsx"
 
 if st.button("Process & Combine Files", type="primary"):
   if not email_pass:
-    st.warning("Kripya apna Email App Password enter karein.")
+    st.warning("Please enter your Email App Password.")
   elif not os.path.exists(TEMPLATE_FILENAME):
     st.error(
-        f"Template file '{TEMPLATE_FILENAME}' GitHub repository me nahi mili!"
+        f"Template file '{TEMPLATE_FILENAME}' not found in the GitHub repository!"
+        " Please check the file name."
     )
   else:
     download_folder = "temp_downloads"
@@ -68,8 +87,8 @@ if st.button("Process & Combine Files", type="primary"):
         rv, data = mail.select(mailbox_name)
         if rv != "OK":
           st.error(
-              f"'{mailbox_name}' folder select nahi ho paya. Kripya folder ka"
-              " naam check karein."
+              f"Could not select folder '{mailbox_name}'. Please verify the"
+              " folder name."
           )
           mail.logout()
         else:
@@ -78,8 +97,8 @@ if st.button("Process & Combine Files", type="primary"):
 
           if status != "OK" or not messages[0]:
             st.warning(
-                f"Is date ({formatted_date}) par '{mailbox_name}' folder me koi"
-                " mail nahi mila."
+                f"No emails found in '{mailbox_name}' folder for the date"
+                f" ({formatted_date})."
             )
             mail.logout()
           else:
@@ -137,14 +156,13 @@ if st.button("Process & Combine Files", type="primary"):
 
             if matched_mails_count == 0:
               st.warning(
-                  f"Is date par mails mile, lekin unka subject '{subject_filter}'"
-                  " se match nahi hua."
+                  f"Found emails for this date, but their subjects did not match"
+                  f" '{subject_filter}'."
               )
             elif downloaded_files:
               st.success(
-                  f"Total {matched_mails_count} matching mails mile aur"
-                  f" {len(downloaded_files)} files successfully download ho"
-                  " gayi hain!"
+                  f"Total {matched_mails_count} matching emails found and"
+                  f" {len(downloaded_files)} files successfully downloaded!"
               )
 
               output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
@@ -154,8 +172,6 @@ if st.button("Process & Combine Files", type="primary"):
 
               if "Order Data" in wb.sheetnames:
                 ws = wb["Order Data"]
-
-                # Hamesha Row 6 se data paste karna shuru karein (row 6 se niche ke saare purane rows clear ya overwrite honge)
                 current_row = 6
 
                 for file in downloaded_files:
@@ -163,14 +179,11 @@ if st.button("Process & Combine Files", type="primary"):
                     df_source = pd.read_excel(
                         file, sheet_name="Order Data", header=None
                     )
-                    # Attachment ka data row 6 (index 5) se uthayein
                     data_to_paste = df_source.iloc[5:].values.tolist()
 
                     for row_data in data_to_paste:
                       for col_idx, val in enumerate(row_data, start=1):
-                        ws.cell(
-                            row=current_row, column=col_idx, value=val
-                        )  # Direct cell me value assign karein
+                        ws.cell(row=current_row, column=col_idx, value=val)
                       current_row += 1
                   except Exception as e:
                     st.error(f"Error reading file {file}: {e}")
@@ -178,8 +191,8 @@ if st.button("Process & Combine Files", type="primary"):
                 wb.save(output_path)
 
                 st.info(
-                    "Template file me bilkul row 6 se data paste ho gaya hai!"
-                    " Neeche button se download karein:"
+                    "Data has been successfully pasted starting from row 6 in"
+                    " the template file! Click the button below to download:"
                 )
                 with open(output_path, "rb") as f:
                   st.download_button(
@@ -191,11 +204,13 @@ if st.button("Process & Combine Files", type="primary"):
                       ),
                   )
               else:
-                st.error("Template file me 'Order Data' sheet nahi mili.")
+                st.error(
+                    "Sheet 'Order Data' was not found in the template file."
+                )
             else:
               st.warning(
-                  "Matching emails mile, lekin unme koi 'OutputBlankDR' excel"
-                  " file attachment nahi thi."
+                  "Matching emails were found, but none contained an"
+                  " 'OutputBlankDR' Excel file attachment."
               )
 
       except Exception as e:
