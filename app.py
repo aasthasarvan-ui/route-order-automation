@@ -15,7 +15,7 @@ st.set_page_config(
 
 st.title("🤖 Nestle Bot DR Automation Hub")
 st.markdown(
-    "Production-grade high-speed tool to parse email attachments starting with"
+    "High-speed tool to parse email attachments starting with"
     " **OutputBlankDR**, prevent duplicate orders, and merge data starting from"
     " **row 6** in `Output.xlsx`."
 )
@@ -61,7 +61,7 @@ with col1:
   selected_date = st.date_input("Select Target Date", value=datetime.today())
 with col2:
   subject_filter = st.text_input(
-      "Subject Filter (Optional)",
+      "Subject Filter (Optional - Leave blank to ignore subject)",
       value="Nestle Bot Partailly Completed & Missing DR Codes",
       help="Leave blank to process all emails on this date.",
   )
@@ -192,7 +192,7 @@ if st.button("🚀 Run Automation & Merge Data", type="primary"):
                             errors="ignore",
                         )
 
-                      # Strict filter for attachments
+                      # Strict filter for attachments starting with OutputBlankDR
                       if filename.startswith("OutputBlankDR") and filename.endswith(".xlsx"):
                         filepath = os.path.join(download_folder, filename)
                         with open(filepath, "wb") as f:
@@ -216,7 +216,7 @@ if st.button("🚀 Run Automation & Merge Data", type="primary"):
 
                 existing_keys = set()
                 if deduplicate_flag:
-                  # Read existing rows in master to prevent duplicates
+                  # Read existing rows in master template to prevent duplicates
                   for r in range(6, ws.max_row + 1):
                     order_id = ws.cell(row=r, column=1).value
                     product_id = ws.cell(row=r, column=15).value
@@ -232,6 +232,7 @@ if st.button("🚀 Run Automation & Merge Data", type="primary"):
                     df_source = pd.read_excel(
                         file, sheet_name="Order Data", header=None
                     )
+                    # Extract rows starting from index 5 (which corresponds to Excel row 6)
                     data_to_paste = df_source.iloc[5:].values.tolist()
 
                     for row_data in data_to_paste:
