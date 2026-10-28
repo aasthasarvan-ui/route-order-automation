@@ -14,24 +14,43 @@ st.set_page_config(
     layout="centered",
 )
 
-# Custom CSS for polished styling and professional look
+# Custom CSS for polished styling, rounded cards, clean typography, and professional look
 st.markdown("""
     <style>
     .main {
-        background-color: #f8f9fa;
+        background-color: #f4f6f9;
     }
     .stButton>button {
         width: 100%;
-        border-radius: 6px;
-        font-weight: bold;
-        height: 3em;
-    }
-    .metric-card {
-        background-color: #ffffff;
-        padding: 15px;
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        font-weight: 600;
+        height: 3.2em;
+        background: linear-gradient(135deg, #FF4B4B 0%, #FF6B6B 100%);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(255, 75, 75, 0.3);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 75, 75, 0.4);
+    }
+    .metric-container {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        border: 1px solid #eef2f6;
         text-align: center;
+        margin-bottom: 20px;
+    }
+    .card {
+        background: #ffffff;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #eef2f6;
+        margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -39,12 +58,12 @@ st.markdown("""
 # App Header Section
 st.title("📥 Nestle Bot DR Downloader & Merger")
 st.markdown("""
-    <p style='color: #555; font-size: 16px;'>
+    <p style='color: #4a5568; font-size: 16px; font-weight: 400; line-height: 1.5;'>
     High-speed enterprise automation tool to fetch emails, extract attachments starting with <b>'OutputBlankDR'</b>, 
     and consolidate data seamlessly into the master Excel template starting from row 6.
     </p>
 """, unsafe_allow_html=True)
-st.markdown("---")
+st.markdown("<hr style='margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
 
 # Load email password securely from Streamlit secrets if available
 default_password = ""
@@ -98,7 +117,7 @@ with col2:
     )
 
 TEMPLATE_FILENAME = "Output.xlsx"
-st.markdown("---")
+st.markdown("<hr style='margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
 
 # Action Button & Execution Engine
 if st.button("🚀 Process & Combine Files (High Speed)", type="primary"):
@@ -239,12 +258,12 @@ if st.button("🚀 Process & Combine Files (High Speed)", type="primary"):
 
                                 st.success(f"🎉 Successfully processed {len(downloaded_files)} attachment(s) and combined data into master file!")
                                 
-                                # Display metrics
+                                # Display metrics in clean cards
                                 m1, m2 = st.columns(2)
                                 with m1:
-                                    st.metric(label="Files Consolidated", value=len(downloaded_files))
+                                    st.metric(label="📁 Files Consolidated", value=len(downloaded_files))
                                 with m2:
-                                    st.metric(label="Total Rows Added", value=current_row - 6)
+                                    st.metric(label="📊 Total Rows Added", value=current_row - 6)
 
                                 st.markdown("---")
                                 st.info("📥 Click the button below to download your master Excel report:")
