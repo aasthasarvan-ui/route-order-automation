@@ -15,7 +15,7 @@ st.set_page_config(
 
 st.title("📥 Nestle Bot DR Downloader & Merger")
 st.write(
-    "Template Excel file (output.xlsx) me mail ke attachments ka data row 6 se"
+    "Template Excel file (Output.xlsx) me mail ke attachments ka data row 6 se"
     " paste karne ka tool."
 )
 
@@ -42,8 +42,8 @@ subject_filter = st.text_input(
     "Subject Filter", value="Nestle Bot Partailly Completed & Missing DR Codes"
 )
 
-# GitHub par upload ki gayi template file ka naam yahan 'output.xlsx' set hai
-TEMPLATE_FILENAME = "output.xlsx"
+# GitHub par upload ki gayi template file ka naam yahan 'Output.xlsx' set hai
+TEMPLATE_FILENAME = "Output.xlsx"
 
 if st.button("Process & Combine Files", type="primary"):
   if not email_pass:
@@ -149,10 +149,10 @@ if st.button("Process & Combine Files", type="primary"):
                   " gayi hain!"
               )
 
-              output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
-              output_path = os.path.join(download_folder, output_filename)
+              Output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
+              Output_path = os.path.join(download_folder, Output_filename)
 
-              # 'output.xlsx' template file load karein
+              # 'Output.xlsx' template file load karein
               wb = openpyxl.load_workbook(TEMPLATE_FILENAME)
 
               if "Order Data" in wb.sheetnames:
@@ -171,17 +171,17 @@ if st.button("Process & Combine Files", type="primary"):
                   except Exception as e:
                     st.error(f"Error reading file {file}: {e}")
 
-                wb.save(output_path)
+                wb.save(Output_path)
 
                 st.info(
                     "Template file me row 6 se data successfully paste ho gaya"
                     " hai! Neeche button se download karein:"
                 )
-                with open(output_path, "rb") as f:
+                with open(Output_path, "rb") as f:
                   st.download_button(
                       label="📥 Download Master Excel File",
                       data=f,
-                      file_name=output_filename,
+                      file_name=Output_filename,
                       mime=(
                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       ),
