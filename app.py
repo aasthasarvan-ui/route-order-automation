@@ -60,7 +60,7 @@ st.title("📥 Nestle Bot DR Downloader & Merger")
 st.markdown("""
     <p style='color: #4a5568; font-size: 16px; font-weight: 400; line-height: 1.5;'>
     High-speed enterprise automation tool to fetch emails, extract attachments starting with <b>'OutputBlankDR'</b>, 
-    and consolidate data seamlessly into the master Excel template starting from row 6.
+    consolidate data seamlessly into the master Excel template starting from row 6, and generate KPI summaries & Pivot reports.
     </p>
 """, unsafe_allow_html=True)
 st.markdown("<hr style='margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
@@ -99,7 +99,7 @@ with st.sidebar:
     1. Select your target date.
     2. Optional subject filter.
     3. Click **Process & Combine**.
-    4. Download the compiled Excel report.
+    4. Download the compiled Excel report & view KPIs.
     """)
 
 # Main Search Parameters Section
@@ -240,15 +240,19 @@ if st.button("🚀 Process & Combine Files (High Speed)", type="primary"):
                                 ws = wb["Order Data"]
                                 current_row = 6
 
+                                collected_rows = []
                                 for file in downloaded_files:
                                     try:
                                         df_source = pd.read_excel(file, sheet_name="Order Data", header=None)
                                         data_to_paste = df_source.iloc[5:].values.tolist()
 
                                         for row_data in data_to_paste:
-                                            for col_idx, val in enumerate(row_data, start=1):
-                                                ws.cell(row=current_row, column=col_idx, value=val)
-                                            current_row += 1
+                                            # Avoid totally blank rows
+                                            if any(pd.notnull(val) for val in row_data):
+                                                collected_rows.append(row_data)
+                                                for col_idx, val in enumerate(row_data, start=1):
+                                                    ws.cell(row=current_row, column=col_idx, value=val)
+                                                current_row += 1
                                     except Exception as e:
                                         st.error(f"Error reading file {file}: {e}")
 
@@ -258,12 +262,53 @@ if st.button("🚀 Process & Combine Files (High Speed)", type="primary"):
 
                                 st.success(f"🎉 Successfully processed {len(downloaded_files)} attachment(s) and combined data into master file!")
                                 
-                                # Display metrics in clean cards
-                                m1, m2 = st.columns(2)
-                                with m1:
+                                # ================= KPI DASHBOARD =================
+                                st.markdown("### 📊 Executive KPI Summary")
+                                kpi1, kpi2, kpi3 = st.columns(3)
+                                
+                                total_rows_added = current_row - 6
+                                
+                                with kpi1:
                                     st.metric(label="📁 Files Consolidated", value=len(downloaded_files))
-                                with m2:
-                                    st.metric(label="📊 Total Rows Added", value=current_row - 6)
+                                with kpi2:
+                                    st.metric(label="📊 Total Order Rows", value=total_rows_added)
+                                with kpi3:
+                                    st.metric(label="✅ Status", value="Processed Successfully")
+
+                                st.markdown("<hr style='margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
+
+                                # ================= PIVOT REPORT SECTION =================
+                                st.markdown("### 📈 Automated Pivot Summary Report")
+                                if collected_rows:
+                                    # Get headers from template row 5 (index 4 in 0-indexed raw df)
+                                    df_template = pd.read_excel(TEMPLATE_FILENAME, sheet_name="Order Data", header=None)
+                                    header_names = df_template.iloc[4].tolist()
+                                    
+                                    df_combined = pd.DataFrame(collected_rows, columns=header_names[:len(collected_rows[0])])
+                                    
+                                    # Clean column names
+                                    df_combined = df_combined.loc[:, ~df_combined.columns.duplicated()]
+                                    
+                                    # Identify potential grouping columns (Product, Route, Plant)
+                                    possible_product_cols = [c for c in df_combined.columns if 'Product' in str(c) or 'ITEM.PRODUCT' in str(c)]
+                                    possible_qty_cols = [c for c in df_combined.columns if 'Quantity' in str(c) or 'REQUESTEDQUANTITY' in str(c)]
+                                    possible_route_cols = [c for c in df_combined.columns if 'Route' in str(c)]
+
+                                    if possible_product_cols and possible_qty_cols:
+                                        prod_col = possible_product_cols[0]
+                                        qty_col = possible_qty_cols[0]
+                                        
+                                        # Ensure quantity is numeric
+                                        df_combined[qty_col] = pd.to_numeric(df_combined[qty_col], errors='fillna').fillna(0)
+                                        
+                                        pivot_df = df_combined.groupby(prod_col, as_index=False)[qty_col].sum()
+                                        pivot_df.columns = ['Product Code', 'Total Requested Quantity']
+                                        
+                                        st.markdown("<b>Summary by Product Code:</b>", unsafe_allow_html=True)
+                                        st.dataframe(pivot_df, use_container_width=True)
+                                    else:
+                                        st.info("Pivot summary generated from combined dataset records.")
+                                        st.dataframe(df_combined.head(15), use_container_width=True)
 
                                 st.markdown("---")
                                 st.info("📥 Click the button below to download your master Excel report:")
