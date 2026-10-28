@@ -15,8 +15,8 @@ st.set_page_config(
 
 st.title("📥 Nestle Bot DR Downloader & Merger")
 st.write(
-    "Tool to download email attachments and paste data starting from row 6 in"
-    " the template Excel file (Output.xlsx)."
+    "High-speed tool to download email attachments and paste data starting from"
+    " row 6 in the template Excel file (Output.xlsx)."
 )
 
 # Load email password securely from Streamlit secrets if available, otherwise input field
@@ -62,7 +62,7 @@ subject_filter = st.text_input(
 
 TEMPLATE_FILENAME = "Output.xlsx"
 
-if st.button("Process & Combine Files", type="primary"):
+if st.button("Process & Combine Files (High Speed)", type="primary"):
   if not email_pass:
     st.warning("Please enter your Email App Password.")
   elif not os.path.exists(TEMPLATE_FILENAME):
@@ -78,7 +78,7 @@ if st.button("Process & Combine Files", type="primary"):
     imap_date = selected_date.strftime("%d-%b-%Y")
 
     with st.spinner(
-        f"Connecting to email server and checking '{mailbox_name}' folder..."
+        f"Connecting to server and searching '{mailbox_name}' folder..."
     ):
       try:
         mail = imaplib.IMAP4_SSL(imap_server)
@@ -102,31 +102,52 @@ if st.button("Process & Combine Files", type="primary"):
             )
             mail.logout()
           else:
-            downloaded_files = []
-            matched_mails_count = 0
+            msg_nums = messages[0].split()
+            matching_nums = []
 
-            for num in messages[0].split():
-              res, msg_data = mail.fetch(num, "(RFC822)")
-              for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                  msg = email.message_from_bytes(response_part[1])
+            # FAST PASS: Check subjects by fetching only headers first
+            for num in msg_nums:
+              try:
+                res, h_data = mail.fetch(num, "(BODY.PEEK[HEADER.FIELDS (Subject)])")
+                for response_part in h_data:
+                  if isinstance(response_part, tuple):
+                    msg_header = email.message_from_bytes(response_part[1])
+                    raw_subject = msg_header["Subject"]
+                    if raw_subject:
+                      decoded_subj_list = decode_header(raw_subject)
+                      subject_str = ""
+                      for sub, enc in decoded_subj_list:
+                        if isinstance(sub, bytes):
+                          subject_str += sub.decode(
+                              enc or "utf-8", errors="ignore"
+                          )
+                        else:
+                          subject_str += str(sub)
+                      
+                      if subject_filter.strip().lower() in subject_str.lower():
+                        matching_nums.append(num)
+              except Exception:
+                continue
 
-                  raw_subject = msg["Subject"]
-                  if raw_subject:
-                    decoded_subj_list = decode_header(raw_subject)
-                    subject_str = ""
-                    for sub, enc in decoded_subj_list:
-                      if isinstance(sub, bytes):
-                        subject_str += sub.decode(
-                            enc or "utf-8", errors="ignore"
-                        )
-                      else:
-                        subject_str += str(sub)
-                  else:
-                    subject_str = ""
+            if not matching_nums:
+              st.warning(
+                  f"Found emails for this date, but their subjects did not match"
+                  f" '{subject_filter}'."
+              )
+              mail.logout()
+            else:
+              st.info(
+                  f"Found {len(matching_nums)} matching email(s). Downloading"
+                  " attachments..."
+              )
+              downloaded_files = []
 
-                  if subject_filter.strip().lower() in subject_str.lower():
-                    matched_mails_count += 1
+              # Download full content ONLY for matching emails
+              for num in matching_nums:
+                res, msg_data = mail.fetch(num, "(RFC822)")
+                for response_part in msg_data:
+                  if isinstance(response_part, tuple):
+                    msg = email.message_from_bytes(response_part[1])
                     for part in msg.walk():
                       if part.get_content_maintype() == "multipart":
                         continue
@@ -152,66 +173,62 @@ if st.button("Process & Combine Files", type="primary"):
                             f.write(part.get_payload(decode=True))
                           downloaded_files.append(filepath)
 
-            mail.logout()
+              mail.logout()
 
-            if matched_mails_count == 0:
-              st.warning(
-                  f"Found emails for this date, but their subjects did not match"
-                  f" '{subject_filter}'."
-              )
-            elif downloaded_files:
-              st.success(
-                  f"Total {matched_mails_count} matching emails found and"
-                  f" {len(downloaded_files)} files successfully downloaded!"
-              )
-
-              output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
-              output_path = os.path.join(download_folder, output_filename)
-
-              wb = openpyxl.load_workbook(TEMPLATE_FILENAME)
-
-              if "Order Data" in wb.sheetnames:
-                ws = wb["Order Data"]
-                current_row = 6
-
-                for file in downloaded_files:
-                  try:
-                    df_source = pd.read_excel(
-                        file, sheet_name="Order Data", header=None
-                    )
-                    data_to_paste = df_source.iloc[5:].values.tolist()
-
-                    for row_data in data_to_paste:
-                      for col_idx, val in enumerate(row_data, start=1):
-                        ws.cell(row=current_row, column=col_idx, value=val)
-                      current_row += 1
-                  except Exception as e:
-                    st.error(f"Error reading file {file}: {e}")
-
-                wb.save(output_path)
-
-                st.info(
-                    "Data has been successfully pasted starting from row 6 in"
-                    " the template file! Click the button below to download:"
+              if downloaded_files:
+                st.success(
+                    f"Successfully downloaded {len(downloaded_files)} Excel"
+                    " attachment(s)!"
                 )
-                with open(output_path, "rb") as f:
-                  st.download_button(
-                      label="📥 Download Master Excel File",
-                      data=f,
-                      file_name=output_filename,
-                      mime=(
-                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      ),
+
+                output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
+                output_path = os.path.join(download_folder, output_filename)
+
+                # Load template file Output.xlsx
+                wb = openpyxl.load_workbook(TEMPLATE_FILENAME)
+
+                if "Order Data" in wb.sheetnames:
+                  ws = wb["Order Data"]
+                  current_row = 6
+
+                  for file in downloaded_files:
+                    try:
+                      df_source = pd.read_excel(
+                          file, sheet_name="Order Data", header=None
+                      )
+                      data_to_paste = df_source.iloc[5:].values.tolist()
+
+                      for row_data in data_to_paste:
+                        for col_idx, val in enumerate(row_data, start=1):
+                          ws.cell(row=current_row, column=col_idx, value=val)
+                        current_row += 1
+                    except Exception as e:
+                      st.error(f"Error reading file {file}: {e}")
+
+                  wb.save(output_path)
+
+                  st.info(
+                      "Data has been successfully pasted starting from row 6 in"
+                      " the template file! Click the button below to download:"
+                  )
+                  with open(output_path, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Master Excel File",
+                        data=f,
+                        file_name=output_filename,
+                        mime=(
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        ),
+                    )
+                else:
+                  st.error(
+                      "Sheet 'Order Data' was not found in the template file."
                   )
               else:
-                st.error(
-                    "Sheet 'Order Data' was not found in the template file."
+                st.warning(
+                    "Matching emails were found, but none contained an"
+                    " 'OutputBlankDR' Excel file attachment."
                 )
-            else:
-              st.warning(
-                  "Matching emails were found, but none contained an"
-                  " 'OutputBlankDR' Excel file attachment."
-              )
 
       except Exception as e:
         st.error(f"An error occurred: {e}")
