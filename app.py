@@ -6,7 +6,6 @@ import os
 import pandas as pd
 import streamlit as st
 
-# Streamlit Page Configuration
 st.set_page_config(
     page_title="Nestle DR Downloader & Combiner",
     page_icon="📥",
@@ -19,7 +18,6 @@ st.write(
     " files ko download aur combine karne ke liye tool."
 )
 
-# Sidebar Credentials & Settings
 st.sidebar.header("Email Credentials")
 email_user = st.sidebar.text_input(
     "Email Address", value="harmesh.kumar@aseesfeed.com"
@@ -32,7 +30,6 @@ imap_server = st.sidebar.selectbox(
     "IMAP Server", ["imap.gmail.com", "imap.mail.yahoo.com", "imap.office365.com"]
 )
 
-# Main UI inputs
 st.subheader("Search Parameters")
 selected_date = st.date_input("Select Date", value=datetime.today())
 subject_filter = st.text_input(
@@ -55,54 +52,79 @@ if st.button("Process & Combine Files", type="primary"):
         mail.login(email_user, email_pass)
         mail.select("inbox")
 
-        search_query = f'(ON "{imap_date}" SUBJECT "{subject_filter}")'
+        # Sirf date ke basis par search karein taaki IMAP subject search fail na ho
+        search_query = f'(ON "{imap_date}")'
         status, messages = mail.search(None, search_query)
 
         if status != "OK" or not messages[0]:
           st.warning(
-              f"Is date ({formatted_date}) par koi matching mail nahi mila."
+              f"Is date ({formatted_date}) par inbox me koi mail nahi mila."
           )
           mail.logout()
         else:
           downloaded_files = []
+          matched_mails_count = 0
+
           for num in messages[0].split():
             res, msg_data = mail.fetch(num, "(RFC822)")
             for response_part in msg_data:
               if isinstance(response_part, tuple):
                 msg = email.message_from_bytes(response_part[1])
-                for part in msg.walk():
-                  if part.get_content_maintype() == "multipart":
-                    continue
-                  if part.get("Content-Disposition") is None:
-                    continue
 
-                  filename = part.get_filename()
-                  if filename:
-                    decoded_header_val = decode_header(filename)
-                    filename = decoded_header_val[0][0]
-                    if isinstance(filename, bytes):
-                      filename = filename.decode(
-                          decoded_header_val[0][1] or "utf-8", errors="ignore"
-                      )
+                # Subject decode karein
+                raw_subject = msg["Subject"]
+                if raw_subject:
+                  decoded_subj_list = decode_header(raw_subject)
+                  subject_str = ""
+                  for sub, enc in decoded_subj_list:
+                    if isinstance(sub, bytes):
+                      subject_str += sub.decode(enc or "utf-8", errors="ignore")
+                    else:
+                      subject_str += str(sub)
+                else:
+                  subject_str = ""
 
-                    if (
-                        "OutputBlankDR" in filename
-                        and filename.endswith(".xlsx")
-                    ):
-                      filepath = os.path.join(download_folder, filename)
-                      with open(filepath, "wb") as f:
-                        f.write(part.get_payload(decode=True))
-                      downloaded_files.append(filepath)
+                # Python ke andar subject match karein
+                if subject_filter.strip().lower() in subject_str.lower():
+                  matched_mails_count += 1
+                  for part in msg.walk():
+                    if part.get_content_maintype() == "multipart":
+                      continue
+                    if part.get("Content-Disposition") is None:
+                      continue
+
+                    filename = part.get_filename()
+                    if filename:
+                      decoded_header_val = decode_header(filename)
+                      filename = decoded_header_val[0][0]
+                      if isinstance(filename, bytes):
+                        filename = filename.decode(
+                            decoded_header_val[0][1] or "utf-8", errors="ignore"
+                        )
+
+                      if (
+                          "OutputBlankDR" in filename
+                          and filename.endswith(".xlsx")
+                      ):
+                        filepath = os.path.join(download_folder, filename)
+                        with open(filepath, "wb") as f:
+                          f.write(part.get_payload(decode=True))
+                        downloaded_files.append(filepath)
 
           mail.logout()
 
-          if downloaded_files:
+          if matched_mails_count == 0:
+            st.warning(
+                f"Is date par mails toh mile, lekin unka subject '{subject_filter}'"
+                " se match nahi hua."
+            )
+          elif downloaded_files:
             st.success(
-                f"Total {len(downloaded_files)} files successfully download ho"
-                " gayi hain!"
+                f"Total {matched_mails_count} matching mails mile aur"
+                f" {len(downloaded_files)} files successfully download ho gayi"
+                " hain!"
             )
 
-            # Combine Excel Files
             all_data = []
             for file in downloaded_files:
               try:
