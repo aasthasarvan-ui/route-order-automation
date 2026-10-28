@@ -299,7 +299,7 @@ if st.button("🚀 Process & Combine Files (High Speed)", type="primary"):
                                         qty_col = possible_qty_cols[0]
                                         
                                         # Ensure quantity is numeric
-                                        df_combined[qty_col] = pd.to_numeric(df_combined[qty_col], errors='fillna').fillna(0)
+                                        df_combined[qty_col] = pd.to_numeric(df_combined[qty_col], errors='coerce').fillna(0)
                                         
                                         pivot_df = df_combined.groupby(prod_col, as_index=False)[qty_col].sum()
                                         pivot_df.columns = ['Product Code', 'Total Requested Quantity']
