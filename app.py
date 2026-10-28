@@ -42,7 +42,6 @@ subject_filter = st.text_input(
     "Subject Filter", value="Nestle Bot Partailly Completed & Missing DR Codes"
 )
 
-# GitHub par upload ki gayi template file ka naam yahan 'Output.xlsx' set hai
 TEMPLATE_FILENAME = "Output.xlsx"
 
 if st.button("Process & Combine Files", type="primary"):
@@ -51,7 +50,6 @@ if st.button("Process & Combine Files", type="primary"):
   elif not os.path.exists(TEMPLATE_FILENAME):
     st.error(
         f"Template file '{TEMPLATE_FILENAME}' GitHub repository me nahi mili!"
-        " Kripya file ka naam check karein."
     )
   else:
     download_folder = "temp_downloads"
@@ -149,39 +147,45 @@ if st.button("Process & Combine Files", type="primary"):
                   " gayi hain!"
               )
 
-              Output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
-              Output_path = os.path.join(download_folder, Output_filename)
+              output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
+              output_path = os.path.join(download_folder, output_filename)
 
-              # 'Output.xlsx' template file load karein
               wb = openpyxl.load_workbook(TEMPLATE_FILENAME)
 
               if "Order Data" in wb.sheetnames:
                 ws = wb["Order Data"]
 
-                # Har downloaded file se row 6 (index 5) se aage ka data append karein
+                # Hamesha Row 6 se data paste karna shuru karein (row 6 se niche ke saare purane rows clear ya overwrite honge)
+                current_row = 6
+
                 for file in downloaded_files:
                   try:
                     df_source = pd.read_excel(
                         file, sheet_name="Order Data", header=None
                     )
+                    # Attachment ka data row 6 (index 5) se uthayein
                     data_to_paste = df_source.iloc[5:].values.tolist()
 
                     for row_data in data_to_paste:
-                      ws.append(row_data)
+                      for col_idx, val in enumerate(row_data, start=1):
+                        ws.cell(
+                            row=current_row, column=col_idx, value=val
+                        )  # Direct cell me value assign karein
+                      current_row += 1
                   except Exception as e:
                     st.error(f"Error reading file {file}: {e}")
 
-                wb.save(Output_path)
+                wb.save(output_path)
 
                 st.info(
-                    "Template file me row 6 se data successfully paste ho gaya"
-                    " hai! Neeche button se download karein:"
+                    "Template file me bilkul row 6 se data paste ho gaya hai!"
+                    " Neeche button se download karein:"
                 )
-                with open(Output_path, "rb") as f:
+                with open(output_path, "rb") as f:
                   st.download_button(
                       label="📥 Download Master Excel File",
                       data=f,
-                      file_name=Output_filename,
+                      file_name=output_filename,
                       mime=(
                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       ),
