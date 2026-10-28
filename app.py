@@ -3,6 +3,7 @@ import email
 from email.header import decode_header
 import imaplib
 import os
+import openpyxl
 import pandas as pd
 import streamlit as st
 
@@ -14,8 +15,8 @@ st.set_page_config(
 
 st.title("📥 Nestle Bot DR Downloader & Merger")
 st.write(
-    "Mozilla Thunderbird / Gmail se specific folder aur date ke"
-    " **OutputBlankDR** excel files ko download aur combine karne ke liye tool."
+    "Template Excel file (output.xlsx) me mail ke attachments ka data row 6 se"
+    " paste karne ka tool."
 )
 
 st.sidebar.header("Email Credentials & Settings")
@@ -41,9 +42,17 @@ subject_filter = st.text_input(
     "Subject Filter", value="Nestle Bot Partailly Completed & Missing DR Codes"
 )
 
+# GitHub par upload ki gayi template file ka naam yahan 'output.xlsx' set hai
+TEMPLATE_FILENAME = "output.xlsx"
+
 if st.button("Process & Combine Files", type="primary"):
   if not email_pass:
     st.warning("Kripya apna Email App Password enter karein.")
+  elif not os.path.exists(TEMPLATE_FILENAME):
+    st.error(
+        f"Template file '{TEMPLATE_FILENAME}' GitHub repository me nahi mili!"
+        " Kripya file ka naam check karein."
+    )
   else:
     download_folder = "temp_downloads"
     os.makedirs(download_folder, exist_ok=True)
@@ -140,65 +149,33 @@ if st.button("Process & Combine Files", type="primary"):
                   " gayi hain!"
               )
 
-              all_order_data = []
-              template_file = downloaded_files[
-                  0
-              ]  # Pehli file ka structure template ke liye use hoga
+              output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
+              output_path = os.path.join(download_folder, output_filename)
 
-              # Sabhi files se 'Order Data' read karna
-              for idx, file in enumerate(downloaded_files):
-                try:
-                  df_raw = pd.read_excel(
-                      file, sheet_name="Order Data", header=None
-                  )
-                  # Row 4 ke baad ka data (yani row 5 index se jo Excel ki row 6 hai) extract karna
-                  data_rows = df_raw.iloc[4:]
-                  all_order_data.append(data_rows)
-                except Exception as e:
-                  st.error(f"Error reading file {file}: {e}")
+              # 'output.xlsx' template file load karein
+              wb = openpyxl.load_workbook(TEMPLATE_FILENAME)
 
-              if all_order_data:
-                # Pehli file ki pehli 4 rows (instructions aur template headers) ko base banana
-                df_template = pd.read_excel(
-                    template_file, sheet_name="Order Data", header=None
-                )
-                header_structure = df_template.iloc[0:4]
+              if "Order Data" in wb.sheetnames:
+                ws = wb["Order Data"]
 
-                # Saare data rows ko ek sath concatenate karna
-                combined_data = pd.concat(all_order_data, ignore_index=True)
+                # Har downloaded file se row 6 (index 5) se aage ka data append karein
+                for file in downloaded_files:
+                  try:
+                    df_source = pd.read_excel(
+                        file, sheet_name="Order Data", header=None
+                    )
+                    data_to_paste = df_source.iloc[5:].values.tolist()
 
-                # Final DataFrame banana jisme row 6 se data shuru ho
-                final_order_df = pd.concat(
-                    [header_structure, combined_data], ignore_index=True
-                )
+                    for row_data in data_to_paste:
+                      ws.append(row_data)
+                  except Exception as e:
+                    st.error(f"Error reading file {file}: {e}")
 
-                output_filename = f"Master_OutputBlankDR_{formatted_date.replace('-', '_')}.xlsx"
-                output_path = os.path.join(download_folder, output_filename)
-
-                # Excel file ko multi-sheet format me save karna (Field List aur Order Data dono ke sath)
-                with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-                  # Field List sheet copy karna pehli file se
-                  df_field_list = pd.read_excel(
-                      template_file, sheet_name="Field List", header=None
-                  )
-                  df_field_list.to_excel(
-                      writer,
-                      sheet_name="Field List",
-                      index=False,
-                      header=False,
-                  )
-
-                  # Order Data sheet save karna jisme row 6 se data paste ho
-                  final_order_df.to_excel(
-                      writer,
-                      sheet_name="Order Data",
-                      index=False,
-                      header=False,
-                  )
+                wb.save(output_path)
 
                 st.info(
-                    "Files successfully combine ho chuki hain aur row 6 se data"
-                    " paste ho gaya hai. Neeche button se download karein:"
+                    "Template file me row 6 se data successfully paste ho gaya"
+                    " hai! Neeche button se download karein:"
                 )
                 with open(output_path, "rb") as f:
                   st.download_button(
@@ -209,6 +186,8 @@ if st.button("Process & Combine Files", type="primary"):
                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       ),
                   )
+              else:
+                st.error("Template file me 'Order Data' sheet nahi mili.")
             else:
               st.warning(
                   "Matching emails mile, lekin unme koi 'OutputBlankDR' excel"
